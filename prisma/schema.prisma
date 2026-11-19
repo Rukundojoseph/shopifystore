@@ -1,0 +1,487 @@
+// StoreHub Rwanda — multi-tenant e-commerce SaaS
+// Every store-scoped table carries `storeId`. All dashboard queries go through
+// tenant-scoped helpers in lib/tenants; see prisma/rls.sql for the matching
+// PostgreSQL Row Level Security policies.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Platform users ─────────────────────────────────────────────────────────
+
+enum PlatformRole {
+  PLATFORM_ADMIN
+  USER
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model User {
+  id              String       @id @default(uuid()) @db.Uuid
+  name            String
+  email           String       @unique
+  passwordHash    String
+  emailVerifiedAt DateTime?
+  role            PlatformRole @default(USER)
+  status          UserStatus   @default(ACTIVE)
+  phone           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  memberships StoreMember[]
+  ownedStores Store[]       @relation("StoreOwner")
+  tokens      UserToken[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+model UserToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  type      TokenType
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@map("user_tokens")
+}
+
+// ─── Stores (tenants) ───────────────────────────────────────────────────────
+
+enum StoreStatus {
+  DRAFT
+  PUBLISHED
+  SUSPENDED
+}
+
+model Store {
+  id           String      @id @default(uuid()) @db.Uuid
+  ownerId      String      @db.Uuid
+  businessName String
+  name         String
+  slug         String      @unique // subdomain: <slug>.<root domain>
+  category     String
+  description  String?
+  phone        String?
+  email        String?
+  location     String?
+  currency     String      @default("RWF")
+  status       StoreStatus @default(DRAFT)
+  templateKey  String?
+
+  // Website builder: the layout is stored as JSON, never as raw HTML.
+  draftConfig     Json?
+  publishedConfig Json?
+  publishedAt     DateTime?
+
+  orderCounter Int      @default(1000)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  owner         User           @relation("StoreOwner", fields: [ownerId], references: [id])
+  members       StoreMember[]
+  domains       StoreDomain[]
+  settings      StoreSettings?
+  categories    Category[]
+  products      Product[]
+  variants      ProductVariant[]
+  customers     Customer[]
+  orders        Order[]
+  orderItems    OrderItem[]
+  payments      Payment[]
+  subscriptions Subscription[]
+  media         Media[]
+  auditLogs     AuditLog[]
+
+  @@index([ownerId])
+  @@map("stores")
+}
+
+enum StoreRole {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+model StoreMember {
+  id        String    @id @default(uuid()) @db.Uuid
+  storeId   String    @db.Uuid
+  userId    String    @db.Uuid
+  role      StoreRole
+  createdAt DateTime  @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, userId])
+  @@map("store_members")
+}
+
+enum DomainType {
+  SUBDOMAIN
+  CUSTOM
+}
+
+model StoreDomain {
+  id         String     @id @default(uuid()) @db.Uuid
+  storeId    String     @db.Uuid
+  domain     String     @unique
+  type       DomainType
+  verifiedAt DateTime?
+  isPrimary  Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@map("store_domains")
+}
+
+model StoreSettings {
+  id                   String   @id @default(uuid()) @db.Uuid
+  storeId              String   @unique @db.Uuid
+  deliveryFee          Int      @default(0) // RWF
+  freeDeliveryOver     Int? // RWF; null = never free
+  acceptMomo           Boolean  @default(true)
+  acceptCashOnDelivery Boolean  @default(true)
+  // Reserved for when merchants get their own MTN collection accounts.
+  // Must be encrypted with lib/security/crypto before storage.
+  momoCredentialsEnc   String?
+  updatedAt            DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("store_settings")
+}
+
+// ─── Catalog ────────────────────────────────────────────────────────────────
+
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  storeId   String   @db.Uuid
+  name      String
+  slug      String
+  imageUrl  String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([storeId, slug])
+  @@map("categories")
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+}
+
+model Product {
+  id             String        @id @default(uuid()) @db.Uuid
+  storeId        String        @db.Uuid
+  categoryId     String?       @db.Uuid
+  name           String
+  slug           String
+  description    String?
+  price          Int // integer RWF (RWF has no minor unit)
+  compareAtPrice Int?
+  currency       String        @default("RWF")
+  sku            String?
+  stockQuantity  Int           @default(0)
+  trackInventory Boolean       @default(true)
+  status         ProductStatus @default(DRAFT)
+  featured       Boolean       @default(false)
+  images         String[]
+  options        Json? // [{ name: "Size", values: ["S","M"] }]
+  seoTitle       String?
+  seoDescription String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  store      Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category   Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  variants   ProductVariant[]
+  orderItems OrderItem[]
+
+  @@unique([storeId, slug])
+  @@index([storeId, status])
+  @@map("products")
+}
+
+model ProductVariant {
+  id            String   @id @default(uuid()) @db.Uuid
+  storeId       String   @db.Uuid
+  productId     String   @db.Uuid
+  title         String // "M / Black"
+  optionValues  Json // { "Size": "M", "Color": "Black" }
+  sku           String?
+  price         Int? // overrides product price when set
+  stockQuantity Int      @default(0)
+  position      Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  store      Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@index([storeId, productId])
+  @@map("product_variants")
+}
+
+// ─── Customers & orders ─────────────────────────────────────────────────────
+
+model Customer {
+  id        String   @id @default(uuid()) @db.Uuid
+  storeId   String   @db.Uuid
+  name      String
+  phone     String
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store  Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@unique([storeId, phone])
+  @@map("customers")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  READY_FOR_DELIVERY
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  MTN_MOMO
+  CASH_ON_DELIVERY
+}
+
+enum OrderPaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+}
+
+model Order {
+  id            String             @id @default(uuid()) @db.Uuid
+  storeId       String             @db.Uuid
+  customerId    String?            @db.Uuid
+  number        Int
+  customerName  String
+  customerPhone String
+  customerEmail String?
+  address       String
+  district      String
+  notes         String?
+  subtotal      Int
+  deliveryFee   Int
+  total         Int
+  currency      String             @default("RWF")
+  paymentMethod PaymentMethod
+  paymentStatus OrderPaymentStatus @default(UNPAID)
+  status        OrderStatus        @default(PENDING)
+  stockReleased Boolean            @default(false)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  store    Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items    OrderItem[]
+  payments Payment[]
+
+  @@unique([storeId, number])
+  @@index([storeId, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String  @id @default(uuid()) @db.Uuid
+  storeId     String  @db.Uuid
+  orderId     String  @db.Uuid
+  productId   String? @db.Uuid
+  variantId   String? @db.Uuid
+  name        String
+  variantName String?
+  imageUrl    String?
+  unitPrice   Int
+  quantity    Int
+  total       Int
+
+  store   Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// ─── Payments ───────────────────────────────────────────────────────────────
+
+enum PaymentKind {
+  CUSTOMER_ORDER // customer → store
+  SUBSCRIPTION // store owner → platform
+}
+
+enum PaymentStatus {
+  pending
+  processing
+  successful
+  failed
+  expired
+  cancelled
+  refunded
+}
+
+model Payment {
+  id                      String        @id @default(uuid()) @db.Uuid
+  storeId                 String        @db.Uuid
+  orderId                 String?       @db.Uuid
+  subscriptionId          String?       @db.Uuid
+  kind                    PaymentKind
+  provider                String // "mtn_momo" | "cash" | "manual"
+  referenceId             String        @unique @db.Uuid // X-Reference-Id sent to MTN
+  externalId              String // our id echoed back by MTN
+  financialTransactionId  String?
+  amount                  Int
+  currency                String
+  payerPhone              String?
+  status                  PaymentStatus @default(pending)
+  failureReason           String?
+  lastCheckedAt           DateTime?
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  store        Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order        Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  subscription Subscription?  @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  events       PaymentEvent[]
+
+  @@index([storeId, status])
+  @@index([status, createdAt])
+  @@map("payments")
+}
+
+model PaymentEvent {
+  id         String         @id @default(uuid()) @db.Uuid
+  paymentId  String         @db.Uuid
+  source     String // request | callback | poll | system | simulator
+  fromStatus PaymentStatus?
+  toStatus   PaymentStatus?
+  note       String?
+  payload    Json?
+  createdAt  DateTime       @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@map("payment_events")
+}
+
+// ─── SaaS subscriptions ─────────────────────────────────────────────────────
+
+model SubscriptionPlan {
+  id                 String   @id @default(uuid()) @db.Uuid
+  key                String   @unique // starter | business | professional
+  name               String
+  description        String?
+  priceMonthly       Int // RWF
+  maxProducts        Int? // null = unlimited
+  maxStaff           Int      @default(0)
+  allowCustomDomain  Boolean  @default(false)
+  allowMomo          Boolean  @default(false)
+  allTemplates       Boolean  @default(false)
+  features           String[]
+  isActive           Boolean  @default(true)
+  position           Int      @default(0)
+  createdAt          DateTime @default(now())
+
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  EXPIRED
+  CANCELLED
+}
+
+model Subscription {
+  id               String             @id @default(uuid()) @db.Uuid
+  storeId          String             @db.Uuid
+  planId           String             @db.Uuid
+  status           SubscriptionStatus @default(ACTIVE)
+  trialEndsAt      DateTime?
+  currentPeriodEnd DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  store    Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  plan     SubscriptionPlan @relation(fields: [planId], references: [id])
+  payments Payment[]
+
+  @@index([storeId])
+  @@map("subscriptions")
+}
+
+// ─── Media & audit ──────────────────────────────────────────────────────────
+
+model Media {
+  id        String   @id @default(uuid()) @db.Uuid
+  storeId   String   @db.Uuid
+  url       String
+  filename  String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@map("media")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  storeId   String?  @db.Uuid
+  action    String
+  metadata  Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  store Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
