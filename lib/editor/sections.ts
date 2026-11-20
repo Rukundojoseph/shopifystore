@@ -4,20 +4,27 @@ import type { ListItem, Section, SettingValue } from "./schema";
 // storefront renderer (defaults). React components live in
 // components/storefront/sections and are mapped by `type`.
 
-export type FieldDef =
+export type FieldDef = (
   | { key: string; label: string; type: "text" | "textarea" | "color" | "image" | "link" }
   | { key: string; label: string; type: "number"; min?: number; max?: number; step?: number }
   | { key: string; label: string; type: "toggle" }
   | { key: string; label: string; type: "select"; options: { value: string; label: string }[] }
   | { key: string; label: string; type: "category" }
-  | { key: string; label: string; type: "list"; itemLabel: string; fields: { key: string; label: string; type: "text" | "textarea" | "image" | "link" }[] };
+  | { key: string; label: string; type: "note" }
+  | { key: string; label: string; type: "list"; itemLabel: string; fields: { key: string; label: string; type: "text" | "textarea" | "image" | "link" }[] }
+) & {
+  /** Only show this field while a toggle is on (key), or while every listed setting equals its value. */
+  showIf?: string | { key: string; equals: SettingValue }[];
+};
 
 export type SectionDef = {
   type: string;
   label: string;
   description: string;
-  group: "Layout" | "Content" | "Commerce" | "Engagement";
+  group: "Layout" | "Content" | "Commerce" | "Engagement" | "Advanced";
   global?: boolean; // header/footer: edited once, shown on every page
+  /** The fixed content block of a built-in shop page (product list, cart…): can be moved, not removed. */
+  system?: boolean;
   fields: FieldDef[];
   defaults: Record<string, SettingValue>;
 };
@@ -34,7 +41,25 @@ const bg: FieldDef = { key: "backgroundColor", label: "Background colour", type:
 const fg: FieldDef = { key: "textColor", label: "Text colour", type: "color" };
 const align: FieldDef = { key: "align", label: "Text alignment", type: "select", options: opt(["left", "Left"], ["center", "Centre"], ["right", "Right"]) };
 
+const systemMain = (kind: string, label: string, description: string): SectionDef => ({
+  type: `${kind}-main`, label, description, group: "Layout", system: true, fields: [], defaults: {},
+});
+
 export const SECTION_DEFS: SectionDef[] = [
+  systemMain("shop", "Product list", "All products with search, sorting and categories"),
+  systemMain("product", "Product details", "Gallery, price, options and add to cart"),
+  systemMain("collection", "Category products", "Products in the current category"),
+  systemMain("cart", "Cart", "The shopper's cart and totals"),
+  systemMain("checkout", "Checkout", "Delivery details and payment"),
+  systemMain("order", "Order confirmation", "Order summary and payment status"),
+  {
+    type: "custom",
+    label: "Custom layout",
+    description: "Build anything from containers and elements",
+    group: "Advanced",
+    fields: [],
+    defaults: {},
+  },
   {
     type: "header",
     label: "Navigation bar",
@@ -42,16 +67,43 @@ export const SECTION_DEFS: SectionDef[] = [
     group: "Layout",
     global: true,
     fields: [
-      { key: "logoText", label: "Store name / logo text", type: "text" },
-      { key: "logoImage", label: "Logo image", type: "image" },
-      { key: "showSearch", label: "Show search", type: "toggle" },
-      { key: "showCart", label: "Show cart", type: "toggle" },
+      { key: "navMode", label: "Navigation bar", type: "select", options: opt(["standard", "Standard (logo, links, icons)"], ["custom", "Fully custom — design it yourself"]) },
+      { key: "navCustomNote", label: "Your navigation bar is now a layout of elements (Logo, Menu, Search, Cart…) you can change freely: select any of them on the canvas, drag in buttons, images or containers, and set spacing, borders and placement in each element's Advanced tab.", type: "note", showIf: [{ key: "navMode", equals: "custom" }] },
+      { key: "logoText", label: "Store name / logo text", type: "text" , showIf: [{ key: "navMode", equals: "standard" }] },
+      { key: "logoImage", label: "Logo image", type: "image" , showIf: [{ key: "navMode", equals: "standard" }] },
+      { key: "showSearch", label: "Show search", type: "toggle" , showIf: [{ key: "navMode", equals: "standard" }] },
+      { key: "showCart", label: "Show cart", type: "toggle" , showIf: [{ key: "navMode", equals: "standard" }] },
       { key: "sticky", label: "Stick to top when scrolling", type: "toggle" },
       { key: "style", label: "Style", type: "select", options: opt(["light", "Light"], ["dark", "Dark"], ["brand", "Brand colour"]) },
-      { key: "links", label: "Menu links", type: "list", itemLabel: "Link", fields: [{ key: "label", label: "Label", type: "text" }, { key: "href", label: "Destination", type: "link" }] },
+      { key: "backgroundColor", label: "Background colour (overrides style)", type: "color" },
+      { key: "textColor", label: "Text colour (overrides style)", type: "color" },
+      { key: "logoPosition", label: "Logo position", type: "select", options: opt(["left", "Left"], ["center", "Centre"]) , showIf: [{ key: "navMode", equals: "standard" }] },
+      { key: "linksPosition", label: "Menu links position", type: "select", options: opt(["left", "Next to the logo"], ["center", "Centre"], ["right", "Right, beside the icons"]) , showIf: [{ key: "navMode", equals: "standard" }] },
+      { key: "linksGap", label: "Space between links", type: "select", options: opt(["sm", "Small"], ["md", "Medium"], ["lg", "Large"], ["xl", "Extra large"]) , showIf: [{ key: "navMode", equals: "standard" }] },
+      { key: "linkSize", label: "Link text size", type: "select", options: opt(["sm", "Small"], ["md", "Medium"], ["lg", "Large"]) , showIf: [{ key: "navMode", equals: "standard" }] },
+      { key: "linksUppercase", label: "Links in capitals", type: "toggle" , showIf: [{ key: "navMode", equals: "standard" }] },
+      { key: "navHeight", label: "Bar height (px)", type: "number", min: 48, max: 140, step: 4 , showIf: [{ key: "navMode", equals: "standard" }] },
+      { key: "showLinks", label: "Show menu links", type: "toggle" , showIf: [{ key: "navMode", equals: "standard" }] },
+      { key: "navElements", label: "Add your own elements to the bar", type: "toggle" , showIf: [{ key: "navMode", equals: "standard" }] },
+      { key: "navElementsPosition", label: "Your elements' position", type: "select", options: opt(["left", "After the logo"], ["center", "Centre"], ["right", "Before the icons"]), showIf: [{ key: "navMode", equals: "standard" }, { key: "navElements", equals: true }] },
+      { key: "navNote", label: "Your elements sit in a container in the bar: drag buttons, icons, images, text, search, containers or columns into it from the Add panel. Select the container to change its layout and spacing.", type: "note", showIf: [{ key: "navMode", equals: "standard" }, { key: "navElements", equals: true }] },
+      { key: "links", label: "Menu links", type: "list", itemLabel: "Link", fields: [{ key: "label", label: "Label", type: "text" }, { key: "href", label: "Destination", type: "link" }] , showIf: [{ key: "navMode", equals: "standard" }] },
+      { key: "topBar", label: "Information bar above the header", type: "toggle" },
+      { key: "topBarMode", label: "Information bar content", type: "select", options: opt(["simple", "Simple text"], ["custom", "Custom layout (images, buttons…)"]), showIf: "topBar" },
+      { key: "topBarText", label: "Information bar text", type: "text", showIf: [{ key: "topBar", equals: true }, { key: "topBarMode", equals: "simple" }] },
+      { key: "topBarLink", label: "Information bar link (optional)", type: "link", showIf: [{ key: "topBar", equals: true }, { key: "topBarMode", equals: "simple" }] },
+      { key: "topBarBg", label: "Information bar background", type: "color", showIf: [{ key: "topBar", equals: true }, { key: "topBarMode", equals: "simple" }] },
+      { key: "topBarColor", label: "Information bar text colour", type: "color", showIf: [{ key: "topBar", equals: true }, { key: "topBarMode", equals: "simple" }] },
+      { key: "topBarImage", label: "Information bar background image", type: "image", showIf: [{ key: "topBar", equals: true }, { key: "topBarMode", equals: "simple" }] },
+      { key: "topBarOverlay", label: "Darken background image (%)", type: "number", min: 0, max: 80, step: 5, showIf: [{ key: "topBar", equals: true }, { key: "topBarMode", equals: "simple" }] },
+      { key: "topBarNote", label: "Design the bar right on the canvas: click it to select its container, then drag images, buttons, text or columns into it from the Add panel. Each element has its own Style and Advanced tabs, conditions and workflows.", type: "note", showIf: [{ key: "topBar", equals: true }, { key: "topBarMode", equals: "custom" }] },
     ],
     defaults: {
       logoText: "", logoImage: "", showSearch: true, showCart: true, sticky: true, style: "light",
+      backgroundColor: "", textColor: "",
+      logoPosition: "left", linksPosition: "left", linksGap: "md", linkSize: "sm", linksUppercase: false, navHeight: 64,
+      showLinks: true, navElements: false, navElementsPosition: "right", navMode: "standard",
+      topBar: false, topBarMode: "simple", topBarText: "Free delivery in Kigali on orders over 50,000 RWF", topBarLink: "", topBarBg: "", topBarColor: "", topBarImage: "", topBarOverlay: 30,
       links: [{ label: "Shop", href: "/products" }, { label: "About", href: "/about" }, { label: "Contact", href: "/contact" }],
     },
   },
@@ -154,9 +206,11 @@ export const SECTION_DEFS: SectionDef[] = [
       { key: "imageRatio", label: "Image ratio", type: "select", options: opt(["square", "Square"], ["portrait", "Portrait"], ["landscape", "Landscape"]) },
       { key: "sort", label: "Sort by", type: "select", options: opt(["newest", "Newest"], ["price-asc", "Price: low to high"], ["price-desc", "Price: high to low"], ["name", "Name"]) },
       { key: "showViewAll", label: "Show 'View all' link", type: "toggle" },
+      { key: "cardAlign", label: "Card text alignment", type: "select", options: opt(["left", "Left"], ["center", "Centred"]) },
+      { key: "cardButton", label: "Show 'Add to cart' button", type: "toggle" },
       bg, spacing,
     ],
-    defaults: { heading: "Featured products", source: "latest", category: "", limit: 8, columns: "4", imageRatio: "square", sort: "newest", showViewAll: true, backgroundColor: "", paddingY: "lg" },
+    defaults: { heading: "Featured products", source: "latest", category: "", limit: 8, columns: "4", imageRatio: "square", sort: "newest", showViewAll: true, cardAlign: "left", cardButton: false, backgroundColor: "", paddingY: "lg" },
   },
   {
     type: "categories",
@@ -277,7 +331,12 @@ export const SECTION_DEFS: SectionDef[] = [
 ];
 
 export const SECTION_MAP: Record<string, SectionDef> = Object.fromEntries(SECTION_DEFS.map((d) => [d.type, d]));
-export const PLACEABLE_SECTIONS = SECTION_DEFS.filter((d) => !d.global);
+export const PLACEABLE_SECTIONS = SECTION_DEFS.filter((d) => !d.global && !d.system);
+
+/** Default content of a built-in shop page: just its main block. */
+export function defaultSystemSections(kind: string): Section[] {
+  return [{ id: `${kind}-main`, type: `${kind}-main`, settings: {} }];
+}
 
 export function newSectionId(type: string): string {
   return `${type}-${Math.random().toString(36).slice(2, 9)}`;

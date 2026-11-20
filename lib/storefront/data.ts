@@ -49,6 +49,7 @@ export const loadProducts = cache(async (storeId: string): Promise<StorefrontPro
     featured: p.featured,
     createdAt: p.createdAt.getTime(),
     inStock: !p.trackInventory || (p.variants.length ? p.variants.some((v) => v.stockQuantity > 0) : p.stockQuantity > 0),
+    hasVariants: p.variants.length > 0,
   }));
 });
 

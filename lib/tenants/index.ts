@@ -1,10 +1,12 @@
 import "server-only";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { cookies, headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { db } from "@/lib/db";
 import { requireUser, type CurrentUser } from "@/lib/auth/session";
 import { can, type Permission } from "./permissions";
+import { storeKeyFromHost } from "./host";
+import { resolveStore } from "./resolve";
 
 export const ACTIVE_STORE_COOKIE = "sh_store";
 
@@ -22,13 +24,32 @@ export const getMemberships = cache(async (userId: string) =>
  * perform `permission` on it. All tenant data access in the dashboard must be
  * scoped with the returned `store.id` — never with an id taken from the client.
  */
+/**
+ * The store whose own domain (<slug>.<root domain> or a verified custom
+ * domain) this request arrived on, or null on the platform domain.
+ */
+export const getHostStore = cache(async () => {
+  const key = storeKeyFromHost((await headers()).get("host"));
+  if (!key) return null;
+  return (await resolveStore(key)) ?? notFound();
+});
+
 export const requireStore = cache(async (permission?: Permission) => {
   const user = await requireUser();
   const memberships = await getMemberships(user.id);
-  if (memberships.length === 0) redirect("/onboarding");
+  const hostStore = await getHostStore();
 
-  const preferred = (await cookies()).get(ACTIVE_STORE_COOKIE)?.value;
-  const membership = memberships.find((m) => m.storeId === preferred) ?? memberships[0];
+  let membership;
+  if (hostStore) {
+    // On a store's own domain the dashboard is locked to that store; the
+    // store-switcher cookie is ignored. Non-members get a 404, not a hint.
+    membership = memberships.find((m) => m.storeId === hostStore.id);
+    if (!membership) notFound();
+  } else {
+    if (memberships.length === 0) redirect("/onboarding");
+    const preferred = (await cookies()).get(ACTIVE_STORE_COOKIE)?.value;
+    membership = memberships.find((m) => m.storeId === preferred) ?? memberships[0];
+  }
 
   const store = await db.store.findUniqueOrThrow({
     where: { id: membership.storeId },
@@ -37,7 +58,7 @@ export const requireStore = cache(async (permission?: Permission) => {
   if (store.status === "SUSPENDED" && user.role !== "PLATFORM_ADMIN") redirect("/suspended");
   if (permission && !can(membership.role, permission)) redirect("/dashboard?denied=1");
 
-  return { user, store, role: membership.role, memberships };
+  return { user, store, role: membership.role, memberships, onStoreDomain: !!hostStore };
 });
 
 export type StoreContext = Awaited<ReturnType<typeof requireStore>>;

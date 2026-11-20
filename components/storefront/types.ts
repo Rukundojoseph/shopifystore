@@ -11,6 +11,8 @@ export type StorefrontProduct = {
   featured: boolean;
   createdAt: number;
   inStock: boolean;
+  /** Products with options must be added from their product page (to pick a variant). */
+  hasVariants: boolean;
 };
 
 export type StorefrontCategory = { id: string; name: string; slug: string; imageUrl: string | null };

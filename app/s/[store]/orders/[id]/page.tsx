@@ -4,6 +4,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { resolveStore } from "@/lib/tenants/resolve";
 import { StorePage } from "@/components/storefront/store-page";
+import { SystemPage } from "@/components/storefront/site-frame";
 import { PaymentTracker } from "@/components/checkout/payment-tracker";
 import { href } from "@/components/storefront/types";
 import { formatMoney } from "@/lib/money";
@@ -27,7 +28,8 @@ export default async function OrderPage({ params }: P) {
 
   return (
     <StorePage storeKey={key}>
-      {({ ctx }) => (
+      {({ ctx, config }) => (
+        <SystemPage kind="order" sections={config.systemPages?.order} ctx={ctx}>
         <div className="mx-auto max-w-2xl px-4 py-10 @2xl:py-16">
           <p className="text-sm opacity-60">Order #{order.number}</p>
           <h1 className="mt-1 text-3xl font-semibold" style={{ fontFamily: "var(--sf-heading)" }}>Thank you, {order.customerName.split(" ")[0]}!</h1>
@@ -67,6 +69,7 @@ export default async function OrderPage({ params }: P) {
           <p className="mt-8 text-sm opacity-70">Keep this page link to check your order. Questions? Contact {store.name}{store.phone ? ` on ${store.phone}` : ""}.</p>
           <Link href={href(ctx, "/products")} className="mt-6 inline-block text-sm font-semibold underline">Continue shopping</Link>
         </div>
+        </SystemPage>
       )}
     </StorePage>
   );

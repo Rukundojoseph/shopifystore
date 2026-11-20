@@ -7,6 +7,7 @@ import type { SiteConfig } from "@/lib/editor/schema";
 import type { StorefrontCtx } from "@/components/storefront/types";
 import { SectionList, SiteFrame } from "@/components/storefront/site-frame";
 import { FontLoader } from "@/components/editor/font-loader";
+import { fontsInDesign } from "@/lib/editor/fonts";
 import { Button, cn } from "@/components/ui";
 import { applyTemplateAction } from "../../actions";
 
@@ -15,7 +16,7 @@ export function TemplatePreviewer({ name, templateKey, config, ctx }: { name: st
   const home = config.pages.find((p) => p.slug === "/")!;
   return (
     <div className="flex h-screen flex-col">
-      <FontLoader fonts={[config.theme.font, config.theme.headingFont]} />
+      <FontLoader fonts={[config.theme.font, config.theme.headingFont, ...fontsInDesign(config)]} />
       <header className="flex items-center justify-between gap-4 border-b border-zinc-200 bg-white px-4 py-3">
         <Link href="/store-builder/templates" className="flex items-center gap-2 text-sm font-medium"><ArrowLeft className="h-4 w-4" /> Templates</Link>
         <p className="font-semibold">{name}</p>

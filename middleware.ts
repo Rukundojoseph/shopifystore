@@ -1,33 +1,24 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { STORE_HOST_APP_PATHS, storeKeyFromHost } from "@/lib/tenants/host";
 
 // Multi-tenant routing:
-//   <slug>.<root domain>/...      → /s/<slug>/...
-//   <custom domain>/...           → /s/<hostname>/...  (resolved via store_domains)
-//   <root domain>/s/<slug>/...    → served as-is (preview / no-DNS fallback)
-
-const ROOT = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost:3000").toLowerCase();
-const ROOT_HOST = ROOT.split(":")[0];
-const PLATFORM_SUBDOMAINS = new Set(["www", "app", "admin"]);
+//   <slug>.<root domain>/dashboard/...  → store owner dashboard, locked to that store
+//   <slug>.<root domain>/...            → /s/<slug>/...
+//   <custom domain>/...                 → /s/<hostname>/...  (resolved via store_domains)
+//   <root domain>/s/<slug>/...          → served as-is (preview / no-DNS fallback)
 
 export function middleware(req: NextRequest) {
-  const host = (req.headers.get("host") || "").toLowerCase();
-  const hostname = host.split(":")[0];
   const url = req.nextUrl;
-
-  let storeKey: string | null = null;
-  if (hostname === ROOT_HOST || hostname === "127.0.0.1" || hostname.endsWith(".vercel.app")) {
-    storeKey = null; // platform
-  } else if (hostname.endsWith(`.${ROOT_HOST}`)) {
-    const sub = hostname.slice(0, -(ROOT_HOST.length + 1));
-    if (!sub.includes(".") && !PLATFORM_SUBDOMAINS.has(sub)) storeKey = sub;
-  } else if (hostname) {
-    storeKey = hostname; // custom domain
-  }
+  const storeKey = storeKeyFromHost(req.headers.get("host"));
 
   if (!storeKey) return NextResponse.next();
 
-  // Platform-only areas are never served from a store domain.
-  if (/^\/(dashboard|admin|onboarding|store-builder|login|register|reset-password|verify-email|s\/)/.test(url.pathname)) {
+  // The owner dashboard, editor and sign-in pages are served on the store's
+  // own domain too. requireStore() pins them to this host's store.
+  if (STORE_HOST_APP_PATHS.test(url.pathname)) return NextResponse.next();
+
+  // Other platform-only areas are never served from a store domain.
+  if (/^\/(admin|onboarding|register|verify-email|s\/)/.test(url.pathname)) {
     return new NextResponse("Not found", { status: 404 });
   }
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { StorePage } from "@/components/storefront/store-page";
+import { SystemPage } from "@/components/storefront/site-frame";
 import { ProductCard } from "@/components/storefront/sections";
 import { href } from "@/components/storefront/types";
 import { storeMetadata } from "@/lib/storefront/metadata";
@@ -15,12 +16,13 @@ export default async function ProductsPage({ params, searchParams }: P) {
   const { q, sort, preview } = await searchParams;
   return (
     <StorePage storeKey={store} preview={preview === "draft"}>
-      {({ ctx }) => {
+      {({ ctx, config }) => {
         const term = (q ?? "").trim().toLowerCase();
         const items = ctx.products
           .filter((p) => !term || p.name.toLowerCase().includes(term))
           .sort((a, b) => (sort === "price-asc" ? a.price - b.price : sort === "price-desc" ? b.price - a.price : b.createdAt - a.createdAt));
         return (
+          <SystemPage kind="shop" sections={config.systemPages?.shop} ctx={ctx}>
           <div className="mx-auto max-w-6xl px-4 py-10 @2xl:px-6">
             <div className="mb-6 flex flex-col gap-4 @2xl:flex-row @2xl:items-end @2xl:justify-between">
               <div>
@@ -52,6 +54,7 @@ export default async function ProductsPage({ params, searchParams }: P) {
               <p className="py-20 text-center opacity-60">No products found.</p>
             )}
           </div>
+          </SystemPage>
         );
       }}
     </StorePage>

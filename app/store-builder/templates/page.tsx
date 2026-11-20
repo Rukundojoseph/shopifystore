@@ -13,7 +13,7 @@ import { applyTemplateAction } from "../actions";
 
 export const metadata = { title: "Choose a template" };
 
-const BASIC = new Set(["general", "fashion", "grocery"]);
+const BASIC = new Set(["general", "fashion", "grocery", "blank"]);
 
 export default async function TemplatesPage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
   const { store } = await requireStore("store.design");

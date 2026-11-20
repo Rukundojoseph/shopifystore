@@ -9,6 +9,7 @@ export function themeVars(theme: Theme): CSSProperties {
     "--sf-secondary": theme.secondaryColor,
     "--sf-bg": theme.backgroundColor,
     "--sf-text": theme.textColor,
+    "--sf-on-primary": contrastText(theme.primaryColor),
     "--sf-font": `"${theme.font}", ui-sans-serif, system-ui, sans-serif`,
     "--sf-heading": `"${theme.headingFont}", ui-sans-serif, system-ui, sans-serif`,
     "--sf-radius": RADIUS[theme.radius] ?? "10px",

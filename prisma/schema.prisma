@@ -37,10 +37,11 @@ model User {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
-  memberships StoreMember[]
-  ownedStores Store[]       @relation("StoreOwner")
-  tokens      UserToken[]
-  auditLogs   AuditLog[]
+  memberships    StoreMember[]
+  savedTemplates SavedTemplate[]
+  ownedStores    Store[]         @relation("StoreOwner")
+  tokens         UserToken[]
+  auditLogs      AuditLog[]
 
   @@map("users")
 }
@@ -97,20 +98,22 @@ model Store {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  owner         User           @relation("StoreOwner", fields: [ownerId], references: [id])
-  members       StoreMember[]
-  domains       StoreDomain[]
-  settings      StoreSettings?
-  categories    Category[]
-  products      Product[]
-  variants      ProductVariant[]
-  customers     Customer[]
-  orders        Order[]
-  orderItems    OrderItem[]
-  payments      Payment[]
-  subscriptions Subscription[]
-  media         Media[]
-  auditLogs     AuditLog[]
+  owner           User             @relation("StoreOwner", fields: [ownerId], references: [id])
+  members         StoreMember[]
+  domains         StoreDomain[]
+  settings        StoreSettings?
+  categories      Category[]
+  products        Product[]
+  variants        ProductVariant[]
+  customers       Customer[]
+  orders          Order[]
+  savedTemplates  SavedTemplate[]
+  formSubmissions FormSubmission[]
+  orderItems      OrderItem[]
+  payments        Payment[]
+  subscriptions   Subscription[]
+  media           Media[]
+  auditLogs       AuditLog[]
 
   @@index([ownerId])
   @@map("stores")
@@ -359,23 +362,23 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id                      String        @id @default(uuid()) @db.Uuid
-  storeId                 String        @db.Uuid
-  orderId                 String?       @db.Uuid
-  subscriptionId          String?       @db.Uuid
-  kind                    PaymentKind
-  provider                String // "mtn_momo" | "cash" | "manual"
-  referenceId             String        @unique @db.Uuid // X-Reference-Id sent to MTN
-  externalId              String // our id echoed back by MTN
-  financialTransactionId  String?
-  amount                  Int
-  currency                String
-  payerPhone              String?
-  status                  PaymentStatus @default(pending)
-  failureReason           String?
-  lastCheckedAt           DateTime?
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
+  id                     String        @id @default(uuid()) @db.Uuid
+  storeId                String        @db.Uuid
+  orderId                String?       @db.Uuid
+  subscriptionId         String?       @db.Uuid
+  kind                   PaymentKind
+  provider               String // "mtn_momo" | "cash" | "manual"
+  referenceId            String        @unique @db.Uuid // X-Reference-Id sent to MTN
+  externalId             String // our id echoed back by MTN
+  financialTransactionId String?
+  amount                 Int
+  currency               String
+  payerPhone             String?
+  status                 PaymentStatus @default(pending)
+  failureReason          String?
+  lastCheckedAt          DateTime?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
 
   store        Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   order        Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
@@ -406,20 +409,20 @@ model PaymentEvent {
 // ─── SaaS subscriptions ─────────────────────────────────────────────────────
 
 model SubscriptionPlan {
-  id                 String   @id @default(uuid()) @db.Uuid
-  key                String   @unique // starter | business | professional
-  name               String
-  description        String?
-  priceMonthly       Int // RWF
-  maxProducts        Int? // null = unlimited
-  maxStaff           Int      @default(0)
-  allowCustomDomain  Boolean  @default(false)
-  allowMomo          Boolean  @default(false)
-  allTemplates       Boolean  @default(false)
-  features           String[]
-  isActive           Boolean  @default(true)
-  position           Int      @default(0)
-  createdAt          DateTime @default(now())
+  id                String   @id @default(uuid()) @db.Uuid
+  key               String   @unique // starter | business | professional
+  name              String
+  description       String?
+  priceMonthly      Int // RWF
+  maxProducts       Int? // null = unlimited
+  maxStaff          Int      @default(0)
+  allowCustomDomain Boolean  @default(false)
+  allowMomo         Boolean  @default(false)
+  allTemplates      Boolean  @default(false)
+  features          String[]
+  isActive          Boolean  @default(true)
+  position          Int      @default(0)
+  createdAt         DateTime @default(now())
 
   subscriptions Subscription[]
 
@@ -484,4 +487,44 @@ model AuditLog {
   @@index([storeId, createdAt])
   @@index([action, createdAt])
   @@map("audit_logs")
+}
+
+enum SavedTemplateKind {
+  BLOCK
+  PAGE
+}
+
+/// Merchant-saved reusable designs: a section/container (BLOCK) or a whole page (PAGE).
+/// `data` is validated against the editor schema before it is stored.
+model SavedTemplate {
+  id          String            @id @default(uuid()) @db.Uuid
+  storeId     String            @db.Uuid
+  kind        SavedTemplateKind
+  name        String
+  data        Json
+  createdById String?           @db.Uuid
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  store     Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([storeId, kind])
+  @@map("saved_templates")
+}
+
+/// Submissions from forms merchants build in the website editor.
+model FormSubmission {
+  id        String   @id @default(uuid()) @db.Uuid
+  storeId   String   @db.Uuid
+  formName  String
+  /// { fieldName: value } — strings only, validated and size-capped by the API.
+  data      Json
+  pagePath  String?
+  createdAt DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt])
+  @@map("form_submissions")
 }
