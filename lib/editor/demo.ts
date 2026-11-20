@@ -15,7 +15,7 @@ export function demoCtx(t: TemplateDef, store: Partial<StorefrontCtx["store"]> =
     categories: t.demoCategories.map((c, i) => ({ id: `cat-${i}`, name: c.name, slug: slugify(c.name), imageUrl: c.image })),
     products: t.demoProducts.map((p, i) => ({
       id: `demo-${i}`, name: p.name, slug: slugify(p.name), price: p.price, compareAtPrice: p.compareAtPrice ?? null, image: p.image,
-      categorySlug: slugify(p.category), featured: i < 4, createdAt: now - i * 1000, inStock: true,
+      categorySlug: slugify(p.category), featured: i < 4, createdAt: now - i * 1000, inStock: true, hasVariants: false,
     })),
     editing: true,
     demo: true,

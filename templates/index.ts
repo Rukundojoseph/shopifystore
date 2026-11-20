@@ -1,5 +1,6 @@
 import type { Section, SiteConfig, Theme } from "@/lib/editor/schema";
 import { createSection } from "@/lib/editor/sections";
+import { createColumns, createCustomSection, createNode } from "@/lib/editor/nodes";
 
 // Templates are configuration, not separate websites: each one is a starting
 // SiteConfig rendered by the single shared storefront renderer.
@@ -287,6 +288,43 @@ export const TEMPLATES: TemplateDef[] = [
         name,
         u("photo-1441986300917-64674bd600d8", 1400),
       ),
+    }),
+  },
+  {
+    key: "blank",
+    name: "Blank canvas",
+    category: "Design your own",
+    description: "Start from an empty layout and build every section yourself with containers, columns and elements.",
+    highlights: ["Containers, rows & columns", "Spacing, padding & margins", "Separate tablet & mobile styles"],
+    theme: { primaryColor: "#111827", secondaryColor: "#f4f4f5", backgroundColor: "#ffffff", textColor: "#18181b", font: "Inter", headingFont: "Inter", radius: "md" },
+    heroImage: u("photo-1497366216548-37526070297c"),
+    demoCategories: [],
+    demoProducts: [],
+    build: (name) => ({
+      header: header(name),
+      footer: footer(name),
+      pages: [
+        {
+          id: "home",
+          name: "Home",
+          slug: "/",
+          sections: [
+            createCustomSection("custom-home-intro", [
+              createNode("container", {
+                props: { contentWidth: "boxed" },
+                style: { desktop: { minHeight: { v: 420, u: "px" }, justify: "center", align: "center", gap: 16, padding: { t: 64, r: 16, b: 64, l: 16, u: "px" }, textAlign: "center" } },
+                children: [
+                  createNode("heading", { props: { text: name, tag: "h1" }, style: { desktop: { font: "heading", fontSize: 48, fontWeight: "700", lineHeight: 1.1 }, mobile: { fontSize: 34 } } }),
+                  createNode("text", { props: { text: "This is your blank canvas. Drag layouts and elements from the left panel to design your store." }, style: { desktop: { maxWidth: { v: 560, u: "px" }, lineHeight: 1.6 } } }),
+                  createNode("button", { props: { text: "Shop now", link: "/products", variant: "solid", align: "center" } }),
+                ],
+              }),
+            ]),
+            createCustomSection("custom-home-columns", [createColumns([1, 1, 1])]),
+          ],
+        },
+        { id: "contact", name: "Contact", slug: "/contact", sections: [createSection("contact")] },
+      ],
     }),
   },
 ];

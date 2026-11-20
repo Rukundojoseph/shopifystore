@@ -3,6 +3,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { resolveStore } from "@/lib/tenants/resolve";
 import { StorePage } from "@/components/storefront/store-page";
+import { SystemPage } from "@/components/storefront/site-frame";
 import { ProductCard } from "@/components/storefront/sections";
 import { ProductPurchase } from "@/components/storefront/product-purchase";
 import { ProductGallery } from "@/components/storefront/product-gallery";
@@ -37,9 +38,10 @@ export default async function ProductPage({ params, searchParams }: P) {
 
   return (
     <StorePage storeKey={store} preview={preview === "draft"}>
-      {({ ctx }) => {
+      {({ ctx, config }) => {
         const related = ctx.products.filter((p) => p.id !== product.id && p.categorySlug && p.categorySlug === product.category?.slug).slice(0, 4);
         return (
+          <SystemPage kind="product" sections={config.systemPages?.product} ctx={ctx}>
           <div className="mx-auto max-w-6xl px-4 py-8 @2xl:px-6 @2xl:py-12">
             <nav className="mb-6 text-sm opacity-60">
               <Link href={href(ctx, "/products")}>Products</Link>
@@ -83,6 +85,7 @@ export default async function ProductPage({ params, searchParams }: P) {
               </section>
             )}
           </div>
+          </SystemPage>
         );
       }}
     </StorePage>

@@ -4,20 +4,22 @@ import { db } from "@/lib/db";
 import { requireStore } from "@/lib/tenants";
 import { formatMoney } from "@/lib/money";
 import { Card, CardHeader, LinkButton, PageHeader, Table, Td, Th, EmptyState, Alert } from "@/components/ui";
-import { OrderStatusBadge, OrderPaymentBadge } from "@/components/dashboard/status";
+import { OrderStatusBadge, OrderPaymentBadge, PaymentStatusBadge } from "@/components/dashboard/status";
+import { can } from "@/lib/tenants/permissions";
 import { storeUrl } from "@/lib/urls";
 import { momoAvailable } from "@/lib/payments/momo";
 
 export const metadata = { title: "Overview" };
 
 export default async function Overview({ searchParams }: { searchParams: Promise<{ denied?: string }> }) {
-  const { store } = await requireStore();
+  const { store, role } = await requireStore();
+  const showPayments = can(role, "payments.view");
   const { denied } = await searchParams;
   const sid = store.id;
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
 
-  const [revenue, ordersToday, openOrders, productCount, lowStock, recent, customers] = await Promise.all([
+  const [revenue, ordersToday, openOrders, productCount, lowStock, recent, customers, payments, awaiting] = await Promise.all([
     db.order.aggregate({ where: { storeId: sid, paymentStatus: "PAID", createdAt: { gte: monthStart } }, _sum: { total: true }, _count: true }),
     db.order.count({ where: { storeId: sid, createdAt: { gte: todayStart } } }),
     db.order.count({ where: { storeId: sid, status: { in: ["PENDING", "PAID", "PROCESSING", "READY_FOR_DELIVERY"] } } }),
@@ -25,6 +27,10 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     db.product.count({ where: { storeId: sid, status: "ACTIVE", trackInventory: true, stockQuantity: { lte: 5 }, variants: { none: {} } } }),
     db.order.findMany({ where: { storeId: sid }, orderBy: { createdAt: "desc" }, take: 6 }),
     db.customer.count({ where: { storeId: sid } }),
+    showPayments
+      ? db.payment.findMany({ where: { storeId: sid, kind: "CUSTOMER_ORDER" }, orderBy: { createdAt: "desc" }, take: 6, include: { order: { select: { id: true, number: true } } } })
+      : Promise.resolve([]),
+    db.order.count({ where: { storeId: sid, paymentStatus: { not: "PAID" }, status: { notIn: ["CANCELLED"] } } }),
   ]);
 
   const checklist = [
@@ -38,7 +44,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
 
   const stats = [
     { label: "Sales this month", value: formatMoney(revenue._sum.total ?? 0, store.currency), sub: `${revenue._count} paid orders` },
-    { label: "Orders today", value: String(ordersToday), sub: `${openOrders} open orders` },
+    { label: "Orders today", value: String(ordersToday), sub: `${openOrders} open · ${awaiting} awaiting payment` },
     { label: "Products", value: String(productCount), sub: lowStock ? `${lowStock} low on stock` : "Stock healthy" },
     { label: "Customers", value: String(customers), sub: "All time" },
   ];
@@ -80,6 +86,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         ))}
       </div>
 
+      <div className="grid gap-6 xl:grid-cols-2">
       <Card>
         <CardHeader title="Recent orders" action={<Link href="/dashboard/orders" className="text-sm text-brand-700 hover:underline">View all</Link>} />
         {recent.length ? (
@@ -101,6 +108,29 @@ export default async function Overview({ searchParams }: { searchParams: Promise
           <EmptyState title="No orders yet" description="When customers buy from your store, orders appear here." />
         )}
       </Card>
+      {showPayments && (
+        <Card>
+          <CardHeader title="Recent payments" action={<Link href="/dashboard/payments" className="text-sm text-brand-700 hover:underline">View all</Link>} />
+          {payments.length ? (
+            <Table>
+              <thead><tr><Th>Date</Th><Th>Order</Th><Th>Status</Th><Th className="text-right">Amount</Th></tr></thead>
+              <tbody>
+                {payments.map((p) => (
+                  <tr key={p.id} className="hover:bg-zinc-50">
+                    <Td className="whitespace-nowrap text-zinc-500">{p.createdAt.toLocaleString("en-RW", { dateStyle: "medium", timeStyle: "short" })}</Td>
+                    <Td>{p.order ? <Link className="font-medium text-brand-700" href={`/dashboard/orders/${p.order.id}`}>#{p.order.number}</Link> : "—"}</Td>
+                    <Td><PaymentStatusBadge status={p.status} /></Td>
+                    <Td className="text-right font-medium">{formatMoney(p.amount, p.currency)}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          ) : (
+            <EmptyState title="No payments yet" description="MoMo and pay-on-delivery payments appear here as customers check out." />
+          )}
+        </Card>
+      )}
+      </div>
     </>
   );
 }

@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { ArrowDown, ArrowUp, ImagePlus, Loader2, Plus, Trash2, X } from "lucide-react";
 import type { ListItem, Section, SettingValue, SiteConfig, SitePage, Theme } from "@/lib/editor/schema";
-import { SECTION_MAP, setting, type FieldDef } from "@/lib/editor/sections";
+import { SECTION_MAP, num, setting, type FieldDef } from "@/lib/editor/sections";
 import { FONTS } from "@/lib/editor/fonts";
 import { uploadImage } from "@/components/dashboard/image-uploader";
 import { cn } from "@/components/ui";
@@ -15,7 +15,7 @@ const labelCls = "mb-1 block text-xs font-medium text-zinc-600";
 
 export type LinkOption = { value: string; label: string };
 
-function ImageField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function ImageField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
@@ -53,7 +53,7 @@ function ColorField({ value, onChange }: { value: string; onChange: (v: string) 
   );
 }
 
-function LinkField({ value, onChange, links }: { value: string; onChange: (v: string) => void; links: LinkOption[] }) {
+export function LinkField({ value, onChange, links }: { value: string; onChange: (v: string) => void; links: LinkOption[] }) {
   const id = `links-${Math.abs(links.length)}`;
   return (
     <>
@@ -126,6 +126,7 @@ function FieldControl({ field, value, onChange, categories, links }: { field: Fi
         </select>
       );
     case "list": return <ListField field={field} value={Array.isArray(value) ? value : []} onChange={onChange} links={links} />;
+    case "note": return null;
   }
 }
 
@@ -141,6 +142,8 @@ export function SectionProperties({ section, onChange, categories, links }: { se
       </div>
       {def.fields.map((f) => {
         if (f.type === "category" && source !== "category") return null;
+        if (f.showIf && (typeof f.showIf === "string" ? setting(section, f.showIf) !== true : !f.showIf.every((c) => setting(section, c.key) === c.equals))) return null;
+        if (f.type === "note") return <p key={f.key} className="rounded-md bg-brand-50 px-2.5 py-2 text-[11px] leading-relaxed text-brand-900">{f.label}</p>;
         return (
           <div key={f.key} className={f.type === "toggle" ? "flex items-center justify-between gap-3" : ""}>
             <span className={f.type === "toggle" ? "text-sm text-zinc-700" : labelCls}>{f.label}</span>
@@ -148,6 +151,29 @@ export function SectionProperties({ section, onChange, categories, links }: { se
           </div>
         );
       })}
+      {!def.global && <SizeProperties section={section} onChange={onChange} />}
+    </div>
+  );
+}
+
+function SizeProperties({ section, onChange }: { section: Section; onChange: (key: string, v: SettingValue) => void }) {
+  const h = num(section, "minHeight", 0);
+  const w = num(section, "width", 100);
+  const row = (label: string, value: string, set: boolean, key: string) => (
+    <div className="flex items-center justify-between text-sm">
+      <span className="text-zinc-700">{label}</span>
+      <span className="flex items-center gap-2">
+        <span className="font-mono text-xs text-zinc-500">{value}</span>
+        {set && <button type="button" onClick={() => onChange(key, null)} className="text-xs text-zinc-500 hover:text-zinc-900">Reset</button>}
+      </span>
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-2 border-t border-zinc-200 pt-4">
+      <span className={labelCls}>Size</span>
+      {row("Height", h > 0 ? `${h}px` : "Auto", h > 0, "minHeight")}
+      {row("Width", w > 0 && w < 100 ? `${w}%` : "Full", w > 0 && w < 100, "width")}
+      <p className="text-xs text-zinc-500">Drag the handles on the section&apos;s edges to resize (hold Shift for fine steps). Width applies on tablets and desktops; phones stay full width.</p>
     </div>
   );
 }
@@ -181,7 +207,7 @@ export function ThemeProperties({ config, onTheme, onSeo }: { config: SiteConfig
   );
 }
 
-export function PageProperties({ page, onChange, onDelete }: { page: SitePage; onChange: (patch: Partial<SitePage>) => void; onDelete?: () => void }) {
+export function PageProperties({ page, onChange, onDelete, onSaveTemplate }: { page: SitePage; onChange: (patch: Partial<SitePage>) => void; onDelete?: () => void; onSaveTemplate?: () => void }) {
   const isHome = page.slug === "/";
   return (
     <div className="flex flex-col gap-4">
@@ -190,6 +216,7 @@ export function PageProperties({ page, onChange, onDelete }: { page: SitePage; o
       {!isHome && <div><span className={labelCls}>Address</span><input className={input} value={page.slug} onChange={(e) => onChange({ slug: "/" + slugify(e.target.value.replace(/^\//, "")) })} /></div>}
       <div><span className={labelCls}>SEO title</span><input className={input} maxLength={120} value={page.seoTitle ?? ""} onChange={(e) => onChange({ seoTitle: e.target.value })} /></div>
       <div><span className={labelCls}>SEO description</span><textarea rows={3} maxLength={300} className={input} value={page.seoDescription ?? ""} onChange={(e) => onChange({ seoDescription: e.target.value })} /></div>
+      {onSaveTemplate && <button type="button" onClick={onSaveTemplate} className="flex items-center justify-center gap-2 rounded-md border border-zinc-300 py-2 text-sm text-zinc-700 hover:border-brand-500">Save page as template</button>}
       {onDelete && !isHome && <button type="button" onClick={onDelete} className="flex items-center justify-center gap-2 rounded-md border border-red-200 py-2 text-sm text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /> Delete page</button>}
     </div>
   );

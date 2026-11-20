@@ -24,7 +24,7 @@ DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
     'store_members','store_domains','store_settings','categories','products','product_variants',
-    'customers','orders','order_items','payments','subscriptions','media'
+    'customers','orders','order_items','payments','subscriptions','media','saved_templates','form_submissions'
   ] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);

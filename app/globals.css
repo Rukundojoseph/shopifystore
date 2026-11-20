@@ -20,3 +20,86 @@ body {
   .no-print { display: none !important; }
   body { background: #fff; }
 }
+
+/* ─── Custom layout builder (components/storefront/nodes.tsx) ───────────────
+   Layered so the per-element CSS generated from the editor always wins. */
+@layer components {
+  .sf-custom { display: flex; flex-direction: column; position: relative; }
+  .sf-node { position: relative; min-width: 0; box-sizing: border-box; }
+  .sf-container { display: flex; flex-direction: column; }
+  .sf-in { display: flex; flex-direction: column; width: 100%; max-width: 1152px; margin-inline: auto; position: relative; }
+  .sf-image img { display: block; width: 100%; height: 100%; }
+  .sf-button { display: flex; flex-shrink: 0; }
+  .sf-icon { flex-shrink: 0; }
+  .sf-searchbar { min-width: 220px; }
+  .sf-search { position: relative; }
+  .sf-icon-btn { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: 9999px; }
+  .sf-icon-btn:hover { background: rgb(0 0 0 / 0.05); }
+  .sf-search-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 50; width: min(340px, 90vw); padding: 8px; background: var(--sf-bg); color: var(--sf-text); border-radius: var(--sf-radius); box-shadow: 0 12px 28px rgb(0 0 0 / 0.16); }
+  .sf-logo { min-width: 0; }
+  .sf-logo-link { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sf-menu { position: relative; }
+  .sf-menu-nav { display: flex; align-items: center; }
+  .sf-menu-items { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+  .sf-menu-link { opacity: .85; white-space: nowrap; transition: opacity .15s; }
+  .sf-menu-link:hover { opacity: 1; }
+  .sf-menu-toggle { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; }
+  .sf-menu-drop { position: absolute; left: 0; top: calc(100% + 6px); z-index: 50; display: flex; min-width: 220px; flex-direction: column; padding: 8px 0; background: var(--sf-bg); color: var(--sf-text); border-radius: var(--sf-radius); box-shadow: 0 12px 28px rgb(0 0 0 / 0.16); }
+  .sf-menu-drop-link { padding: 10px 16px; font-size: 15px; }
+  .sf-cart { flex-shrink: 0; }
+  .sf-cart-link { position: relative; display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; }
+  .sf-cart-count { position: absolute; right: -2px; top: -2px; display: flex; min-width: 20px; height: 20px; align-items: center; justify-content: center; padding: 0 4px; font-size: 11px; font-weight: 700; border-radius: 9999px; background: var(--sf-primary); color: var(--sf-on-primary, #fff); }
+  .sf-button[data-align="center"] { justify-content: center; }
+  .sf-button[data-align="right"] { justify-content: flex-end; }
+  .sf-button[data-align="full"] > .sf-btn { flex: 1; }
+  .sf-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; padding: 12px 24px; font-size: 14px; font-weight: 600; border: 1px solid transparent; border-radius: var(--sf-radius-btn); transition: opacity .15s; }
+  .sf-btn:hover { opacity: .9; }
+  .sf-btn-solid { background: var(--sf-primary); color: var(--sf-on-primary, #fff); }
+  .sf-btn-outline { background: transparent; border-color: currentColor; color: inherit; }
+  .sf-btn-light { background: #fff; color: #111; }
+  .sf-btn-link { background: transparent; color: var(--sf-primary); padding-inline: 0; text-decoration: underline; text-underline-offset: 4px; }
+  .sf-divider .sf-line { border-top-style: solid; border-color: currentColor; opacity: .2; width: 100%; }
+  .sf-icon { display: flex; }
+  .sf-video .sf-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; }
+  .sf-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .sf-form { display: flex; flex-direction: column; gap: 12px; }
+  .sf-btn-secondary { background: var(--sf-secondary); color: var(--sf-text); }
+  .sf-btn-dark { background: #111; color: #fff; }
+  .sf-btn-sm { padding: 8px 16px; font-size: 13px; }
+  .sf-btn-lg { padding: 16px 32px; font-size: 16px; }
+  button.sf-btn { cursor: pointer; font: inherit; font-weight: 600; }
+  .sf-field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+  .sf-label { font-weight: 500; }
+  /* No border by default (a soft fill shows the field); add one under Advanced → Border. */
+  .sf-input { width: 100%; padding: 10px 12px; font: inherit; font-size: 14px; color: #18181b; background: #f4f4f5; border: 1px solid transparent; border-radius: var(--sf-radius); outline: none; }
+  .sf-input:focus { border-color: var(--sf-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sf-primary) 20%, transparent); }
+  .sf-check { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; }
+  .sf-check input { margin-top: 3px; accent-color: var(--sf-primary); }
+  .sf-searchbar { display: flex; gap: 8px; width: 100%; }
+  .sf-search-field { position: relative; display: flex; flex: 1; align-items: center; min-width: 120px; }
+  .sf-search-field > svg { position: absolute; left: 12px; pointer-events: none; color: #18181b; }
+  .sf-search-field > .sf-input { padding-left: 36px; }
+  .sf-form-msg { padding: 10px 12px; font-size: 14px; border-radius: var(--sf-radius); background: color-mix(in srgb, var(--sf-primary) 12%, transparent); }
+  .sf-form-error { background: rgb(220 38 38 / 0.1); color: #b91c1c; }
+  .sf-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; width: 100%; }
+  .sf-cell { display: flex; flex-direction: column; min-width: 0; }
+  .sf-cell > .sf-node { flex: 1 1 auto; }
+  .sf-grid-empty { padding: 32px; text-align: center; font-size: 14px; opacity: .6; }
+  .sf-product-image { overflow: hidden; }
+  .sf-pimg { position: relative; width: 100%; overflow: hidden; background: rgb(0 0 0 / 0.05); }
+  .sf-pimg img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .5s; }
+  .sf-zoom:hover img { transform: scale(1.05); }
+  .sf-pimg-none { display: flex; width: 100%; height: 100%; min-height: 120px; align-items: center; justify-content: center; opacity: .4; }
+  .sf-badge { position: absolute; left: 8px; top: 8px; padding: 2px 8px; font-size: 11px; font-weight: 600; border-radius: 9999px; background: #fff; color: #dc2626; }
+  .sf-badge-dark { background: rgb(0 0 0 / 0.75); color: #fff; }
+  .sf-pname { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .sf-compare { margin-left: 8px; font-size: .85em; font-weight: 400; opacity: .5; }
+  .sf-product-button { display: flex; }
+  .sf-product-button[data-align="center"] { justify-content: center; }
+  .sf-product-button[data-align="right"] { justify-content: flex-end; }
+  .sf-product-button[data-align="full"] > .sf-btn { flex: 1; }
+  .sf-btn[aria-disabled] { opacity: .5; pointer-events: none; }
+}
+
+/* Editor canvas: outline only the innermost hovered layout element. */
+.ed-node:hover:not(:has(.ed-node:hover)):not(.ed-selected) { outline: 1px solid rgb(16 163 108 / 0.55); outline-offset: -1px; }

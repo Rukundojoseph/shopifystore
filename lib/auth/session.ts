@@ -1,9 +1,10 @@
 import "server-only";
 import { SignJWT, jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { sharedCookieDomain } from "@/lib/tenants/host";
 
 const COOKIE = "sh_session";
 const MAX_AGE = 60 * 60 * 24 * 14; // 14 days
@@ -21,6 +22,7 @@ export async function createSession(userId: string) {
     .setExpirationTime(`${MAX_AGE}s`)
     .sign(secret());
   (await cookies()).set(COOKIE, token, {
+    ...(await cookieDomain()),
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -29,8 +31,23 @@ export async function createSession(userId: string) {
   });
 }
 
+/**
+ * Platform and <slug>.<root domain> share the session cookie, so an owner who
+ * signs in once can open their store's dashboard on its subdomain. Custom
+ * domains (and localhost) get a host-only cookie.
+ */
+async function cookieDomain(): Promise<{ domain?: string }> {
+  const domain = sharedCookieDomain();
+  if (!domain) return {};
+  const host = ((await headers()).get("host") || "").toLowerCase().split(":")[0];
+  const onRoot = host === domain.slice(1) || host.endsWith(domain);
+  return onRoot ? { domain } : {};
+}
+
 export async function destroySession() {
-  (await cookies()).delete(COOKIE);
+  const jar = await cookies();
+  jar.delete({ name: COOKIE, path: "/", ...(await cookieDomain()) });
+  jar.delete(COOKIE); // legacy host-only cookie
 }
 
 async function readSessionUserId(): Promise<string | null> {
