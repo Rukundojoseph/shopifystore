@@ -39,7 +39,7 @@ How payment confirmation works (`lib/payments/service.ts`):
 
 1. Checkout creates the order, reserves stock atomically, creates a `payments` row and sends **Request to Pay** with a fresh `X-Reference-Id`.
 2. MTN's `202 Accepted` only moves the payment to `processing` — **never** to paid.
-3. The final status comes from the status endpoint, triggered by (a) the callback, (b) the order page polling, (c) the `/api/cron/payments` sweep (every 5 min, `Authorization: Bearer $CRON_SECRET`).
+3. The final status comes from the status endpoint, triggered by (a) the callback, (b) the order page polling, (c) the `/api/cron/payments` sweep (`Authorization: Bearer $CRON_SECRET`): every 5 minutes from the GitHub Actions workflow `.github/workflows/payment-sweep.yml` (set the `CRON_SECRET` secret and `APP_URL` variable in the repo), plus once a day from Vercel Cron as a safety net, because Vercel's Hobby plan only allows daily cron jobs. On Vercel Pro, set `vercel.json` back to `*/5 * * * *` and delete the workflow.
 4. Callbacks carry an HMAC-signed reference and are only a trigger: status is re-fetched from MTN before anything changes, so a forged callback can't mark an order paid. Amount mismatches are rejected.
 5. Every transition is an atomic conditional update — duplicate callbacks / concurrent polls are logged in `payment_events` and ignored.
 6. Unpaid MoMo orders are cancelled after 2 h and their stock released; customers can retry a failed/declined payment from the order page.

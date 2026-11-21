@@ -1,0 +1,37 @@
+# Every-5-minute MTN MoMo payment sweep (/api/cron/payments).
+# Vercel Hobby only allows daily cron jobs, so vercel.json runs the sweep once
+# a day as a safety net and this scheduled workflow covers the frequent runs.
+#
+# Setup (GitHub → repo → Settings → Secrets and variables → Actions):
+#   secret   CRON_SECRET  same value as CRON_SECRET in Vercel's environment variables
+#   variable APP_URL      the deployed app, e.g. https://your-app.vercel.app
+name: Payment sweep
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: payment-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Call the sweep endpoint
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::warning::APP_URL (variable) or CRON_SECRET (secret) is not set — skipping."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/api/cron/payments"
